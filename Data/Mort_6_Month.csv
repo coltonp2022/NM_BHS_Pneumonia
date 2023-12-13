@@ -1,0 +1,8 @@
+PCR_Result,ELISA_Result,PermID,Herd,Wt_kg,Age,Sex,Cap_Date,EndDate,EndCause,MortalityCause,end6,end12,end18,end24,mort6,mort12,mort18,mort24
+0,0,RG58,RGG,NA,4-6,M,2020-05-13,2020-11-03,Mortality,Unknown,1,1,1,1,1,NA,NA,NA
+0,0,PE221,PE,62,2-4,F,2020-10-26,2020-10-26,Mortality,Capture related,1,1,1,1,1,NA,NA,NA
+0,1,SAC052,CAB,56,2-4,F,2020-10-29,2021-02-02,Mortality,Lion,1,1,1,1,1,NA,NA,NA
+0,0,RR27,RRiv,NA,NA,F,2022-03-29,2022-09-02,Mortality,Unknown,1,1,1,1,1,NA,NA,NA
+0,1,SAC018,SA,NA,6-8,F,2018-10-27,2019-04-22,Mortality,Unknown not predation,1,1,1,1,1,NA,NA,NA
+1,1,SAC026,SA,NA,6-8,F,2018-10-28,2018-10-29,Mortality,Capture related,1,1,1,1,1,NA,NA,NA
+0,1,SAC002,SA,NA,4-6,F,2018-10-27,2019-01-01,Mortality,Unknown,1,1,1,1,1,NA,NA,NA
