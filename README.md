@@ -1,0 +1,3 @@
+New Mexico Bighorn Sheep Pneumonia Analysis - Padilla et al. 2023/2024 in review.
+
+This folder contains all data needed to recreate analyses for "Effects of Mycoplasma ovipneumoniae, abundance, and environmental conditions on bighorn sheep lamb:ewe ratios and adult survival in New Mexico" by Padilla et al. The only thing that it does not contain is the GIS files used for GIS extractions because they are very large and hard to bring to github. You should be able to run everything in the repository other than the GIS extraction code and recreate the analyses. The data folder contains a data frame where the GIS extractions have already been done. If GIS extraction code needs to be tested, I can upload the files. 
