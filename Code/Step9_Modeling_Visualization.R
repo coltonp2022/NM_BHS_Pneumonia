@@ -2,9 +2,10 @@
 # Colton Padilla
 # 8/3/2023
 
-# Last Updated: 8/28/2023
+# Last Updated: 7/9/2024
 
 # Checked model fit using DHARMa
+# Created model averaged figures for desert models
 
 #-----------------#
 # Housekeeping ####
@@ -29,12 +30,14 @@ cor(desert$PrePart_Temp, desert$PostPart_Temp) # r = 0.74
 cor(desert$PrePart_Precip, desert$PostPart_Precip) # r = 0.27
 cor(desert$PrePart_Temp, desert$PostPart_Precip) # r = -0.34
 
-
 # Fit
 res <- simulateResiduals(mod_rocky)
 plot(res) # Fits
 res <- simulateResiduals(mod_des)
 plot(res) # Fits
+
+# Odds ratios
+#emmeans::emmeans(mod_rocky, type = "response")
 
 #------------------------------------------------------------#
 # Make a scatterplot of values for desert temp and precip ####
@@ -94,7 +97,8 @@ theme_set(theme_bw())
 dat <- ggpredict(mod_rocky,
                  terms = "Status") %>%
   mutate(x = if_else(x == "Pre", "Pre-Exposure", "Post-Exposure"),
-         x = factor(x, levels = c("Pre-Exposure", "Post-Exposure")))
+         x = factor(x, levels = c("Pre-Exposure", "Post-Exposure"))) %>%
+  drop_na()
 status <- ggplot(dat,
        aes(x,
            predicted)) +
@@ -108,9 +112,12 @@ status <- ggplot(dat,
 
 # Get data from ggpredict
 dat <- ggpredict(mod_rocky,
-                 terms = "PrePart_Precip [all]")
+                 terms = "PrePart_Precip [all]") %>%
+  as.data.frame()
+
 dat <- dat %>%
   mutate(PrePart_Precip = (x * 91.26726) + 120.933)
+
 dat %>%
   summarise(range(predicted))
 preprecip <- ggplot(dat,
@@ -136,10 +143,14 @@ ggsave(preprecip,
 # Get data from ggpredict
 dat <- ggpredict(mod_rocky,
                  terms = c("Est[all]",
-                           "Status"))
+                           "Status")) %>%
+  as.data.frame()
 dat <- dat %>%
   mutate(Population_Est = (x * 110.0805) + 146.245,
          group = if_else(group == "Pre", "Pre-Exposure", "Post-Exposure"))
+rocky <- rocky %>%
+  mutate(Population_Est = (Est * 110.0805) + 146.245,
+         group = if_else(Status == "Pre", "Pre-Exposure", "Post-Exposure")) 
 
 dat$group <- factor(dat$group, levels = c("Pre-Exposure", "Post-Exposure"))
 dens <- ggplot(dat,
@@ -149,6 +160,11 @@ dens <- ggplot(dat,
   geom_line(aes(color = group,
                 linetype = group),
             linewidth = 0.7) +
+  #geom_point(data = rocky,
+  #           aes(x = Population_Est,
+  #               y = Lambs,
+  #               color = group),
+  #           inherit.aes = F) +
   geom_ribbon(aes(ymin = conf.low,
                   ymax = conf.high),
               alpha = 0.4) +
@@ -169,7 +185,8 @@ dens <- ggplot(dat,
 dat <- ggpredict(mod_rocky,
                  terms = c("PrevLamb_Precip[all]",
                            "Lamb_Temp_Class"),
-                 ci.lvl = 0.95)
+                 ci.lvl = 0.95) %>%
+  as.data.frame()
 dat <- dat %>%
   mutate(PrevLamb_Precip = (x * 77.88366) + 167.6656)
 dat %>%
@@ -216,7 +233,15 @@ figure
 ggsave(filename = "./TablesFigures/Rocky_Model_Graphs.jpg",
        height = 6,
        width = 8.5,
-       dpi = 1200)
+       dpi = 500)
+
+# Save overall figures
+ggsave(filename = "./TablesFigures/DensityGraph.jpg",
+       dens,
+       height = 6, width = 6.5, dpi = 1200)
+ggsave(filename = "./TablesFigures/TempClassGraph.jpg",
+       prevprecip,
+       height = 6, width = 6.5, dpi = 1200)
 
 
 #------------#
@@ -225,12 +250,19 @@ ggsave(filename = "./TablesFigures/Rocky_Model_Graphs.jpg",
 
 # Plot model
 dat <- ggpredict(mod_des,
-                 terms = "PrePart_Precip[all]")
+                 terms = "PrePart_Precip[all]") %>%
+  as.data.frame()
 dat <- dat %>%
   mutate(PrePart_Precip = (x * 34.04618) + 52.63677)
+desplot <- desert %>%
+  mutate(PrePart_Precip = (PrePart_Precip * 34.04618) + 52.63677) %>%
+  mutate(label = str_c(Herd, Year))
 precip <- ggplot(dat,
        aes(PrePart_Precip,
            predicted)) +
+  geom_point(data = desplot,
+             aes(x = PrePart_Precip,
+                 y = Lambs)) +
   geom_line(linewidth = 0.7) +
   geom_ribbon(aes(ymin = conf.low,
                   ymax = conf.high),
@@ -247,6 +279,13 @@ ggsave(precip,
        width = 7,
        height = 7,
        dpi = 1200)
+
+
+# Add labels
+precip + geom_label(data = desplot, aes(x = PrePart_Precip,
+                                        y = Lambs, 
+                                        label = label))
+
 
 # Prepart temp
 dat <- ggpredict(mod_des,
@@ -342,3 +381,61 @@ ggplot(plotdat,
   geom_point() +
   geom_smooth(method = "lm") +
   facet_wrap(~ variable, scales = "free")
+
+#----------------------------------#
+# Model averaged plots manually ####
+#----------------------------------#
+
+# Expand a grid 
+grid <- expand.grid(
+  Status = unique(desert$Status),
+  Est = mean(desert$Est),
+  PrePart_Temp = c(min(desert$PrePart_Temp), max(desert$PrePart_Temp)),
+  PrePart_Precip = mean(desert$PrePart_Precip),
+  Lion_REM = unique(desert$Lion_REM)
+) %>%
+  mutate(Status = if_else(Status == "Pre", 0, 1))
+
+# Overwrite the full subset with the conditional subset
+coefs <- avg_desert$coefficients[1,]
+
+# Now write out the equation for mean
+pred <- numeric()
+for(i in 1:nrow(grid)){
+  pred[i] <- coefs[1] + coefs[2] * grid$Status[i] + coefs[3] * grid$PrePart_Temp[i] +
+    coefs[4] * grid$PrePart_Precip[i] + coefs[5] * (grid$PrePart_Precip[i] ^ 2) +
+    coefs[6] * grid$Lion_REM[i] + coefs[7] * grid$Est[i] + coefs[8] * (grid$Est[i] * grid$Status[i])
+}
+
+# Bind it back and calculate
+grid$pred <- exp(pred)
+grid <- grid %>%
+  group_by(PrePart_Temp) %>%
+  summarise(pred = mean(pred))
+
+# Expand a grid 
+grid <- expand.grid(
+  Status = unique(desert$Status),
+  Est = mean(desert$Est),
+  PrePart_Temp = mean(desert$PrePart_Temp),
+  PrePart_Precip = c(min(desert$PrePart_Precip), max(desert$PrePart_Precip)),
+  Lion_REM = unique(desert$Lion_REM)
+) %>%
+  mutate(Status = if_else(Status == "Pre", 0, 1))
+
+# Overwrite the full subset with the conditional subset
+coefs <- avg_desert$coefficients[1,]
+
+# Now write out the equation for mean
+pred <- numeric()
+for(i in 1:nrow(grid)){
+  pred[i] <- coefs[1] + coefs[2] * grid$Status[i] + coefs[3] * grid$PrePart_Temp[i] +
+    coefs[4] * grid$PrePart_Precip[i] + coefs[5] * (grid$PrePart_Precip[i] ^ 2) +
+    coefs[6] * grid$Lion_REM[i] + coefs[7] * grid$Est[i] + coefs[8] * (grid$Est[i] * grid$Status[i])
+}
+
+# Bind it back and calculate
+grid$pred <- exp(pred)
+grid <- grid %>%
+  group_by(PrePart_Precip) %>%
+  summarise(pred = mean(pred))

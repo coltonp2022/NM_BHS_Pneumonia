@@ -77,7 +77,7 @@ surv$status <- ifelse((grepl("transmitting", surv$EndCause) | is.na(surv$EndCaus
                       1)
 
 # Fix Ladron caputure dates
-surv$Cap_Date <- gsub("0020", "2020", surv$Cap_Date) %>%
+surv$Cap_Date <- gsub("\\<20\\>", "2020", surv$Cap_Date) %>%
   as.Date(., format = "%Y-%m-%d")
 
 # Make all end dates today if na
@@ -241,7 +241,7 @@ survfit2(Surv(Days, status) ~ ELISA_Result,
 # Get yearly survival estimates
 summary(survfit(Surv(Days, status) ~ ELISA_Result, 
                 data = Sero),
-        times = 850)
+        times = 800)
 
 options(scipen = 999)
 
@@ -269,6 +269,15 @@ survfit2(Surv(Days, status) ~ PCR_Result,
        y = "Survival Probability",
        x = "Days") 
 
+
+# Survdiff
+survdiff(Surv(Days, status) ~ PCR_Result,
+         data = PCR %>% filter(PCR_Result != 0.5))
+
+# Get yearly survival estimates
+summary(survfit(Surv(Days, status) ~ PCR_Result, 
+                data = PCR %>% filter(PCR_Result != 0.5)),
+        times = 365)
 
 # Regression
 coxph(Surv(Days, status) ~ PCR_Result,

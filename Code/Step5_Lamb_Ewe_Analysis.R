@@ -29,6 +29,9 @@ lamb <- lamb %>%
 lamb <- lamb %>%
   filter(!(Herd == "HAT" & Year == 2005))
 
+# Look for number of herds
+lamb %>% count(Herd, Status) %>% filter(Status == "Post") %>% mutate(mean = mean(n))
+
 # Get the longest stretches for each post-exposure population
 years <- lamb %>% 
   group_by(Herd) %>%
@@ -83,6 +86,14 @@ lamb %>%
              fill = ind)) +
   geom_histogram(stat = "count",
                  position = "dodge")
+
+# Check out the lamb:ewe ratios in San Andres
+lamb %>%
+  filter(Herd == "SA") %>%
+  group_by(Status) %>%
+  summarise(mean = mean(Lambs),
+            low = min(Lambs),
+            upp = max(Lambs))
 
 #------------------#
 # Full Analysis ####
@@ -167,11 +178,21 @@ spec_ci3$P_Value[3:4] <- boot2samp_t_test(lamb %>% filter(Subspecies == "Desert"
                  "Lambs",
                  "Status3")
 
+# Rocky by southern vs northern
+boot2samp_t_test(lamb %>% filter(Subspecies == "Rocky", Status == "Pre") %>%
+                   mutate(south = if_else(Herd %in% c("SFR", "TC"), "Y", "N")),
+                 "Lambs",
+                 "south")
+
+bcaCI(lamb %>% filter(Subspecies == "Rocky", Status == "Pre") %>%
+        mutate(south = if_else(Herd %in% c("SFR", "TC"), "Y", "N")),
+      "Lambs",
+      "south")
 
 # GLM
 mod <- glmmTMB::glmmTMB(Lambs ~ Status + (1|Herd),
-           data = lamb %>% filter(Lambs != 0),
-           family = Gamma(link = "identity"))
+           data = lamb,# %>% filter(Lambs != 0),
+           family = glmmTMB::nbinom2)
 
 sjPlot::plot_model(mod, "re")
 
@@ -187,7 +208,7 @@ herds <- lamb %>%
   ungroup()
 
 # Get the unique herds
-pop <- unique(herds$Herd)[c(1:2,3,5)]
+pop <- unique(herds$Herd)[c(1,3,6,7)]
 
 # How many years for each
 herds %>% 

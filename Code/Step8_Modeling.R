@@ -19,7 +19,7 @@ library(ggpubr)
 library(sjPlot)
 library(ggeffects)
 library(flextable)
-library(parasite)
+#library(parasite)
 
 # Remove other data
 rm(list = ls())
@@ -29,19 +29,20 @@ lamb <- read_csv("./Data/Clean/BHS_Modeling_Data.csv") %>%
   select(-Timeline)
 
 # Add missing lamb:ewe ratios
-miss <- lamb %>% filter(is.na(Lambs))
-miss$Lambs <- c(57, NA, NA, 25, NA,
-                NA, NA, NA, NA, NA,
-                NA, NA, NA, 75, NA,
-                NA, NA)
+miss <- lamb %>% filter(is.na(Lambs)) %>%
+  arrange(Herd, Year)
+miss$Lambs <- c(61, 33, 57, 71, 71, 27, NA, NA, 18, 56, 27, NA, NA, NA, 13,
+                64, 44, 40, 19, 22, 14, 35, 23, 50, 37, 14, 49, NA, 57, NA,
+                NA, 75, NA, 82, NA, 14)
 
 # Fix miss
 miss <- miss %>% drop_na(Lambs)
-miss$Status <- c("Pre", "Post", "Pre")
 
 # Now add them back
 lamb <- lamb %>% filter(!is.na(Lambs)) %>%
-  rbind(., miss) 
+  rbind(., miss) %>%
+  arrange(Herd, Year) %>%
+  mutate(Status = if_else(is.na(Status), "Pre", Status))
 
 lamb$Status <- factor(lamb$Status, levels = c("Pre", 
                                               "Post"))
@@ -58,26 +59,26 @@ herds %>% group_by(Herd, Status) %>% summarise(n = n())
 
 pop <- unique(herds$Herd)[c(1, 3, 4, 6, 7)]
 
-# Loop through to do bootstrap test
-herd_test <- do.call(rbind, lapply(1:length(pop), function(i){
-  # filter
-  dat <- herds %>% filter(Herd == pop[i])
-  
-  # Test and return
-  boot2samp_t_test(dat,
-                   "Lambs",
-                   "Status") %>%
-    as.data.frame() %>%
-    mutate(Herd = pop[i])
-}))
-
-# Now test the latir
-LAT <- lamb %>% 
-  filter(Herd == "LAT") %>%
-  mutate(Status = if_else(
-    Year < 2016, "Pre", "Post"
-  ))
-boot2samp_t_test(LAT, "Lambs", "Status")
+## Loop through to do bootstrap test
+#herd_test <- do.call(rbind, lapply(1:length(pop), function(i){
+#  # filter
+#  dat <- herds %>% filter(Herd == pop[i])
+#  
+#  # Test and return
+#  boot2samp_t_test(dat,
+#                   "Lambs",
+#                   "Status") %>%
+#    as.data.frame() %>%
+#    mutate(Herd = pop[i])
+#}))
+#
+## Now test the latir
+#LAT <- lamb %>% 
+#  filter(Herd == "LAT") %>%
+#  mutate(Status = if_else(
+#    Year < 2016, "Pre", "Post"
+#  ))
+#boot2samp_t_test(LAT, "Lambs", "Status")
 
 # Now remove nas
 lamb <- lamb %>%
@@ -89,7 +90,8 @@ lamb <- lamb %>%
 
 # Rocky
 rocky <- lamb %>% filter(Subspec == "Rocky") %>%
-  select(-c(Month, MonthNum, Area, Subspec, YearMonth))
+  select(-c(Month, MonthNum, Area, Subspec, YearMonth)) 
+rocky <- rocky[-c(57, 113, 136),] # Remove non matching
 
 # Desert 
 desert <- lamb %>% filter(Subspec == "Desert") %>%
@@ -411,6 +413,39 @@ plot_model(modlist[["Status * Est + PrevLamb_Precip * Lamb_Temp_Class + PrePart_
 testDispersion(modlist[["Status * Est + PrevLamb_Precip * Lamb_Temp_Class + PrePart_Precip"]])
 performance::check_collinearity(modlist[["Status * Est + PrevLamb_Precip * Lamb_Temp_Class + PrePart_Precip"]])
 
+#-----------------------------------------------#
+# Conduct model averaging for the manuscript ####
+#-----------------------------------------------#
+
+# Conditionally average the model list
+avg_rocky <- MuMIn::model.avg(modlist)
+
+# Create an averaged summary table
+summ_rocky <- summary(avg_rocky)$coefmat.subset %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "Parameter") %>%
+  mutate(Parameter = str_remove(Parameter, "cond\\(") %>% str_remove(., "\\)")) %>%
+  mutate(across(2:ncol(.), ~round(., 3))) %>%
+  mutate(Parameter = case_when(
+    Parameter == "(Int)" ~ "Intercept",
+    Parameter == "StatusPost" ~ "Pathogen Status",
+    Parameter == "Est" ~ "Abundance",
+    Parameter == "PrevLamb_Precip" ~ "PLS Precipitation",
+    Parameter == "Lamb_Temp_ClassCold" ~ "PLS Temperature",
+    Parameter == "PrePart_Precip" ~ "PreP Precipitation",
+    Parameter == "Est:StatusPost" ~ "Abundance * Pathogen Status",
+    Parameter == "Lamb_Temp_ClassCold:PrevLamb_Precip" ~ "PLS Temperature * PLS Precipitation"
+  )) %>%
+  rename(Coefficient = Estimate,
+         SE = `Std. Error`,
+         ASE = `Adjusted SE`,
+         Z = `z value`,
+         `P-value` = `Pr(>|z|)`)
+
+# Save the model averaged coefficients
+save_as_docx(summ_rocky,
+             path = "./TablesFigures/Rocky_Model_Summary.docx")
+
 # top Model
 mod_rocky <- modlist[["Status * Est + PrevLamb_Precip * Lamb_Temp_Class + PrePart_Precip"]]
 
@@ -526,6 +561,10 @@ for(i in 1:length(vars)){
 #----------------------#
 # Initial Models ####
 #----------------------#
+
+# Toss the Pelocillos 2001 to test for outlier
+desert <- desert %>%
+  filter(!(Herd == "PE" & Year == 2001))
 
 # Model formulas
 # Model formulas
@@ -660,6 +699,10 @@ summary(modlist[["Status + PrePart_Precip + I(PrePart_Precip ^ 2)"]]) # Highly i
 summary(modlist[["Status + Est + PrePart_Temp + PrePart_Precip + I(PrePart_Precip ^ 2)"]]) # Uninformative param
 summary(modlist[["Status + PrePart_Temp"]]) # Informative
 
+# SJplot
+plot_model(modlist[["Status + PrePart_Temp + PrePart_Precip + I(PrePart_Precip ^ 2)"]],
+           terms = "PrePart_Precip[all]",
+           type = "pred")
 
 # gSUB
 aic$Model <- gsub("Status", "Disease Status", aic$Model) %>%
@@ -701,9 +744,38 @@ tab
 # Recode
 tab$`P-value` <- ifelse(tab$`P-value` < 0.001, "< 0.001", tab$`P-value`)
 
-# Save them all
+#---------------------------------#
+# Model average for manuscript ####
+#---------------------------------#
+
+# Avg
+avg_desert <- MuMIn::model.avg(modlist)
+
+# Create an averaged summary table
+summ_desert <- summary(avg_desert)$coefmat.subset %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "Parameter") %>%
+  mutate(Parameter = str_remove(Parameter, "cond\\(") %>% str_remove(., "\\)")) %>%
+  mutate(across(2:ncol(.), ~round(., 3))) %>%
+  mutate(Parameter = case_when(
+    Parameter == "(Int)" ~ "Intercept",
+    Parameter == "StatusPost" ~ "Pathogen Status",
+    Parameter == "PrePart_Precip" ~ "PreP Precipitation",
+    Parameter == "Est:StatusPost" ~ "Abundance * Pathogen Status",
+    Parameter == "PrePart_Temp" ~ "PreP Temperature",
+    Parameter == "I(PrePart_Precip^2)" ~ "PreP Precipitation2",
+    Parameter == "Lion_REM" ~ "Lion Removal",
+    Parameter == "Est" ~ "Abundance",
+    Parameter == "Est:StatusPost" ~ "Abundance * Pathogen Status"
+  )) %>%
+  rename(Coefficient = Estimate,
+         SE = `Std. Error`,
+         ASE = `Adjusted SE`,
+         Z = `z value`,
+         `P-value` = `Pr(>|z|)`)
+
 # Save
-save_as_docx(flextable(tab), 
+save_as_docx(flextable(summ_desert), 
              path = "./TablesFigures/Desert_Model_Summary.docx")
 
 # Mod des
@@ -713,4 +785,5 @@ mod_des <- modlist[["Status + PrePart_Temp + PrePart_Precip + I(PrePart_Precip ^
 # Save models ####
 #----------------#
 
-save(mod_des, mod_rocky, rocky, desert, file = "./Data/Top_Models.RData")
+save(mod_des, avg_desert, avg_rocky, mod_rocky, rocky, desert, file = "./Data/Top_Models.RData")
+

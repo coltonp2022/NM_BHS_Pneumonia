@@ -306,6 +306,102 @@ ggsave("./TablesFigures/San_Andres_Map.jpg",
        height = 9,
        dpi = 600)
 
+#----------------------------------#
+# Create map of only Latir ####
+#----------------------------------#
+
+# Filter pops to just San Andres
+SA <- pop %>% filter(NAME == "Latir Wilderness (+)")
+
+# Box for plot
+plot_box <- st_as_sfc(st_bbox(st_buffer(SA, 5000) %>% 
+                                st_buffer(., 5000, singleSide = T))) 
+
+# Box
+box <- st_bbox(st_buffer(SA, 5000) %>% 
+                 st_buffer(., 5000, singleSide = T))
+
+# Inset base
+# Get basemap
+inset_base <- basemap_raster(plot_box, "esri", "world_terrain_base")
+
+# Now mask the basemap
+inset_base <- mask(inset_base, as_Spatial(plot_box)) %>%
+  mask(., as_Spatial(nm))
+
+# plot the map
+main <- gg_raster(base) + # The original raster
+  new_scale_fill() + # Reset the fill scale for the rest of the plot
+  geom_sf(data = nm, # NM outline
+          fill = NA, # Remove the fill
+          linewidth = 1) + # Set the outline weight
+  geom_sf(data = SA, # Bring in the pop shapefiles
+          aes(fill = Subspecies), # Fill them by subspecies
+          color = "black", # Set outline color
+          linewidth = 0.5) + # Outline weight
+  geom_sf(data = plot_box,
+          fill = NA,
+          color = "red",
+          linewidth = 1) +
+  labs(y = NULL, # Remove Y coordinates
+       x = NULL, # Remove X coordinates
+       fill = "Subspecies") + # Reset the legend name
+  scale_fill_manual(values = alpha(c("#F0E442", "#0072B2"), 0.6)) + # How far from right
+  theme_test() +
+  theme(legend.position = "none", # Set the legend position
+        legend.box = "horizontal",
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.ticks.length = unit(0, "pt"),
+        plot.margin = margin(0,0,0,0, "cm"),
+        panel.background = element_blank()) + # Make it horizontal
+  guides(fill = guide_legend(title.position = "left", # also help with horizontal
+                             nrow = 1)) # Make sure its a single row
+
+# Draw SA map
+inset <- gg_raster(inset_base) + # The original raster
+  new_scale_fill() + # Reset the fill scale for the rest of the plot
+  coord_sf(expand = F) +
+  geom_sf(data = nm, # NM outline
+          fill = NA, # Remove the fill
+          linewidth = 1) + # Set the outline weight
+  geom_sf(data = SA, # Bring in the pop shapefiles
+          aes(fill = Subspecies), # Fill them by subspecies
+          color = "black", # Set outline color
+          linewidth = 0.5) + # Outline weight
+  geom_sf(data = plot_box,
+          fill = NA,
+          color = "black",
+          linewidth = 1) +
+  coord_sf(expand = F,
+           xlim = c(box[1], box[3]),
+           ylim = c(box[2], box[4])) + 
+  labs(y = NULL, # Remove Y coordinates
+       x = NULL, # Remove X coordinates
+       fill = "Subspecies") + # Reset the legend name
+  scale_fill_manual(values = alpha(c("#F0E442", "#0072B2"), 0.4)) + # How far from right
+  theme_bw() +
+  theme(legend.position =  "none", # Set the legend position
+        legend.box = "horizontal",
+        panel.background = element_blank()) + # Make it horizontal
+  guides(fill = guide_legend(title.position = "left", # also help with horizontal
+                             nrow = 1)) # Make sure its a single row
+
+# Draw the inset
+ggdraw() +
+  draw_plot(inset) +
+  draw_plot(main,
+            height = 0.35,
+            width = 0.35,
+            x = 0.056,
+            y = 0.637) 
+
+# Save
+ggsave("./TablesFigures/Latir_Map.jpg",
+       width = 7,
+       height = 6,
+       dpi = 600)
+
 #-------------------------------------#
 # Get an exposed and unexposed map ####
 #-------------------------------------#

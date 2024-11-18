@@ -416,11 +416,13 @@ ggplot(LAT,
     pattern_angle = 45,
     pattern_density = 0.1) +
   geom_line(aes(x = Year,
-                y = Est / 2.2),
+                y = Est / 2.2,
+                color = "Population Est."),
             inherit.aes = F,
             linewidth = 0.8) +
   geom_point(aes(x = Year,
-                 y = Est / 2.2),
+                 y = Est / 2.2,
+                 color = "Population Est."),
              inherit.aes = F,
              size = 3) +
   labs(y = "Lambs per 100 ewes",
@@ -437,7 +439,8 @@ ggplot(LAT,
         axis.title.y.right = element_text(margin = margin(l = 10))) +
   facet_wrap(~ Herd) +
   scale_y_continuous(name = "Lambs per 100 ewes",
-                     sec.axis = sec_axis(trans = ~. * 2.2, name = "Population Estimate"))
+                     sec.axis = sec_axis(trans = ~. * 2.2, name = "Population Estimate")) +
+  scale_color_manual(name = "", values = c("Population Est." = "black"))
 
 # Save
 ggsave("./TablesFigures/Latir_Ratios.jpg",
